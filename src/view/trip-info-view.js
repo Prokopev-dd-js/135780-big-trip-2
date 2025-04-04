@@ -3,12 +3,16 @@ import { humanizeDate } from '../utils/event';
 
 const EVENT_DATE_FORMAT = 'DD MMM';
 
-function createTripInfoTemplate(events, destinations) {
+function createTripInfoTemplate(events, destinations, offers, totalCost) {
   if (!events.length) {
     return '';
   }
 
-  const destinationNames = events.map((event) => destinations.find((dest) => dest.id === event.destination).name);
+  const destinationNames = events.map((event) => {
+    const destinationObj = destinations.find((dest) => dest.id === event.destination);
+    return destinationObj ? destinationObj.name : '';
+  });
+
   const tripInfoTitle =
     destinationNames.length > 3
       ? `${destinationNames[0]} &mdash; ... &mdash; ${destinationNames[destinationNames.length - 1]}`
@@ -17,20 +21,8 @@ function createTripInfoTemplate(events, destinations) {
   const tripStartTime = Math.min(...events.map((event) => event.dateFrom));
   const tripEndTime = Math.max(...events.map((event) => event.dateTo));
 
-  const totalCost = events.reduce((sum, event) => {
-    let eventCost = event.basePrice;
-
-    if (Array.isArray(event.offers) && event.offers.length > 0) {
-      const selectedOffersCost = event.offers.reduce((offerSum, offer) => offerSum + offer.price, 0);
-
-      eventCost += selectedOffersCost;
-    }
-
-    return sum + eventCost;
-  }, 0);
-
   return (
-    `<section class="trip-main__trip-info  trip-info">
+    `<section class="trip-main__trip-info trip-info">
       <div class="trip-info__main">
         <h1 class="trip-info__title">${tripInfoTitle}</h1>
         <p class="trip-info__dates">
@@ -49,15 +41,25 @@ export default class TripInfoView extends AbstractView {
   #events;
   #destinations;
   #offers;
+  #totalCost;
 
-  constructor({ events, destinations, offers }) {
+  constructor({ events, destinations, offers, totalCost = 0 }) {
     super();
     this.#events = events;
     this.#destinations = destinations;
     this.#offers = offers;
+    this.#totalCost = totalCost;
   }
 
   get template() {
-    return createTripInfoTemplate(this.#events, this.#destinations, this.#offers);
+    return createTripInfoTemplate(this.#events, this.#destinations, this.#offers, this.#totalCost);
+  }
+
+  updateTotalCost(totalCost) {
+    this.#totalCost = totalCost;
+    const costElement = this.element.querySelector('.trip-info__cost-value');
+    if (costElement) {
+      costElement.textContent = totalCost;
+    }
   }
 }
