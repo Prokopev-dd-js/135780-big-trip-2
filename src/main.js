@@ -6,7 +6,7 @@ import PagePresenter from './presenter/page-presenter.js';
 import { getRandomString } from './utils/common.js';
 
 const AUTHORIZATION = `Basic ${getRandomString(10)}`;
-const END_POINT = 'https://22.objects.htmlacademy.pro/big-trip';
+const END_POINT = 'https://23.objects.htmlacademy.pro/big-trip';
 
 const apiService = new ApiService(END_POINT, AUTHORIZATION);
 

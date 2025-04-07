@@ -269,3 +269,4 @@ export default class EventEditFormView extends AbstractStatefulView {
     this.#handleEditClick();
   };
 }
+

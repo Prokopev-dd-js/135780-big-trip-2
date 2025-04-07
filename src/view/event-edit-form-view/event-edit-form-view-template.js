@@ -1,4 +1,5 @@
 import { humanizeDate } from '../../utils/event';
+import { EVENT_TYPES } from '../../const';
 
 const EDIT_FORM_DATE_FORMAT = 'DD/MM/YY';
 
@@ -11,11 +12,7 @@ function createEventDestinationsList(destinations) {
 function createOffersTemplate(offers) {
   return offers.map((offer) =>
     `<div class="event__offer-selector">
-      <input class="event__offer-checkbox visually-hidden"
-        id="${offer.id}"
-        type="checkbox"
-        name="${offer.title}"
-        ${offer.isChecked ? 'checked' : ''}>
+      <input class="event__offer-checkbox visually-hidden" id="${offer.id}" type="checkbox" name="${offer.title}" ${offer.isChecked ? 'checked' : ''}>
       <label class="event__offer-label" for="${offer.id}">
         <span class="event__offer-title">${offer.title}</span>
         &plus;&euro;&nbsp;
@@ -37,9 +34,34 @@ function createOffersContainerTemplate(offersByType) {
 }
 
 function createDestinationPhotoTemplate(destinationById) {
-  return destinationById.pictures.map((picture) =>
-    `<img class="event__photo" src="${picture.src}" alt="${picture.description}">`
-  ).join('');
+  if (destinationById.pictures && destinationById.pictures.length > 0) {
+    return `
+      <div class="event__photos-container">
+        <div class="event__photos-tape">
+          ${destinationById.pictures.map((picture) =>
+    `<img class="event__photo" src="${picture.src}" alt="${picture.description}">`).join('')}
+        </div>
+      </div>
+    `;
+  }
+  return ''; // Если фотографий нет, не создаем этот контейнер
+}
+// Генерация радиокнопок для выбора типа маршрута
+function createEventTypeOptions(eventTypes, selectedType) {
+  return eventTypes.map((type) => {
+    const isChecked = type === selectedType ? 'checked' : ''; // Проверяем, выбран ли этот тип
+    return `
+      <div class="event__type-item">
+        <input id="event-type-${type}-1" class="event__type-input visually-hidden" type="radio" name="event-type" value="${type}" ${isChecked}>
+        <label class="event__type-label event__type-label--${type}" for="event-type-${type}-1">${capitalizeFirstLetter(type)}</label>
+      </div>
+    `;
+  }).join('');
+}
+
+// Функция для первого символа в верхний регистр
+function capitalizeFirstLetter(string) {
+  return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
 function createEventEditFormTemplate(event, destinations, offersList) {
@@ -60,6 +82,8 @@ function createEventEditFormTemplate(event, destinations, offersList) {
     resetButtonText = 'Cancel';
   }
 
+  const eventTypeOptions = createEventTypeOptions(EVENT_TYPES, type); // Генерация опций для выбора типа маршрута
+
   return (
     `<li class="trip-events__item">
       <form class="event event--edit" action="#" method="post">
@@ -73,7 +97,7 @@ function createEventEditFormTemplate(event, destinations, offersList) {
             <div class="event__type-list">
               <fieldset class="event__type-group">
                 <legend class="visually-hidden">Event type</legend>
-                <!-- Здесь можно динамически генерировать элементы выбора типа -->
+                ${eventTypeOptions} <!-- Вставляем список типов маршрута -->
               </fieldset>
             </div>
           </div>
@@ -120,11 +144,13 @@ function createEventEditFormTemplate(event, destinations, offersList) {
           <section class="event__section event__section--destination">
             <h3 class="event__section-title event__section-title--destination">Destination</h3>
             <p class="event__destination-description">${destination ? destinationById.description : ''}</p>
+            ${destinationById.pictures.length > 0 ? `
             <div class="event__photos-container">
               <div class="event__photos-tape">
                 ${destination ? createDestinationPhotoTemplate(destinationById) : ''}
               </div>
             </div>
+            ` : ''}
           </section>
           ` : ''}
         </section>
