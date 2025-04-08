@@ -1,7 +1,8 @@
 import AbstractView from '../framework/view/abstract-view';
 
-function createSortItemTemplate(sort) {
-  const { type, isChecked } = sort;
+function createSortItemTemplate(sort, currentSortType) {
+  const { type } = sort;
+  const isChecked = type === currentSortType;
 
   return (
     `<div class="trip-sort__item trip-sort__item--${type}">
@@ -19,8 +20,10 @@ function createSortItemTemplate(sort) {
   );
 }
 
-function createSortTemplate(sortItems) {
-  const sortItemsTemplate = sortItems.map((sort) => createSortItemTemplate(sort)).join('');
+function createSortTemplate(sortItems, currentSortType) {
+  const sortItemsTemplate = sortItems
+    .map((sort) => createSortItemTemplate(sort, currentSortType))
+    .join('');
 
   return (
     `<form class="trip-events__trip-sort trip-sort" action="#" method="get">
@@ -34,16 +37,17 @@ export default class SortView extends AbstractView {
   #currentSortType = null;
   #onSortChange = null;
 
-  constructor({ sorts, onSortChange }) {
+  constructor({ sorts, currentSortType, onSortChange }) {
     super();
     this.#sorts = sorts;
+    this.#currentSortType = currentSortType;
     this.#onSortChange = onSortChange;
 
     this.element.addEventListener('click', this.#handleSortClick);
   }
 
   get template() {
-    return createSortTemplate(this.#sorts);
+    return createSortTemplate(this.#sorts, this.#currentSortType);
   }
 
   #handleSortClick = (evt) => {
@@ -55,5 +59,23 @@ export default class SortView extends AbstractView {
 
     this.#currentSortType = sortType;
     this.#onSortChange(sortType);
+    this.updateElement({ currentSortType: this.#currentSortType });
   };
+
+  updateElement({ currentSortType }) {
+    this.#currentSortType = currentSortType;
+
+    const parent = this.element.parentElement;
+    if (!parent) {
+      return;
+    }
+
+    const newSortView = new SortView({
+      sorts: this.#sorts,
+      currentSortType: this.#currentSortType,
+      onSortChange: this.#onSortChange
+    });
+
+    parent.replaceChild(newSortView.element, this.element);
+  }
 }

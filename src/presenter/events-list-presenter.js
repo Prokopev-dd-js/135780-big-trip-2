@@ -1,217 +1,67 @@
+import { FILTERS } from '../const.js';
 import { render } from '../framework/render.js';
-import { generateFilter } from '../utils/filter.js';
-import { generateSort } from '../utils/sort.js';
-import { updateItem } from '../utils/event.js';
-import { SORTS, FILTERS, UserAction } from '../const.js';
 import EventListView from '../view/event-list-view.js';
-import FiltersView from '../view/filters-view.js';
-import SortView from '../view/sort-view.js';
 import EventPresenter from './event-presenter.js';
-import NewEventPresenter from './new-event-presenter.js';
 
 export default class EventsListPresenter {
-  #eventsModel;
+  #events = [];
   #destinationsModel;
   #offersModel;
-  #events = [];
-  #destinations = [];
-  #offers = [];
   #eventPresenters = new Map();
   #eventListComponent = new EventListView();
   #tripEventElement;
-  #filtersElement;
-  #newEventPresenter = null;
-  #currentSortType = SORTS[0].type;
   #currentFilterType = FILTERS[0].type;
+  #onDataChange = null;
+  #resetView = null;
 
-  constructor(eventsModel, destinationsModel, offersModel) {
-    this.#eventsModel = eventsModel;
+  constructor(eventsModel, destinationsModel, offersModel, onDataChange, resetView) {
+    this.eventsModel = eventsModel;
     this.#destinationsModel = destinationsModel;
     this.#offersModel = offersModel;
-    this.#eventsModel.addObserver(this._handleModelUpdate);
+    this.#onDataChange = onDataChange;
+    this.#resetView = resetView;
   }
 
-  init() {
-    this.#events = [...this.#eventsModel.events];
-    this.#destinations = [...this.#destinationsModel.destinations];
-    this.#offers = [...this.#offersModel.offers];
-
+  init(events) {
+    this.#events = [...events];
     this.#tripEventElement = document.querySelector('.page-main .trip-events');
-    this.#filtersElement = document.querySelector('.trip-controls__filters');
 
-    this.#renderFilters();
-    this.#renderSort();
     this.#renderEventList();
-
-    document.querySelector('.trip-main__event-add-btn').addEventListener('click', this.#handleNewEventClick);
-  }
-
-  _handleModelUpdate = (event) => {
-    if (event === 'DELETE_EVENT') {
-      this.#reRenderEventList();
-    }
-  };
-
-  get filteredEvents() {
-    return this.#events.filter((event) => this.#applyFilter(event, this.#currentFilterType));
-  }
-
-  #applyFilter(event, filterType) {
-    const now = new Date();
-    switch (filterType) {
-      case 'future': return event.dateFrom > now;
-      case 'present': return event.dateFrom <= now && event.dateTo >= now;
-      case 'past': return event.dateTo < now;
-      default: return true;
-    }
-  }
-
-  #handleFilterChange = (filterType) => {
-    this.#currentFilterType = filterType;
-    this.#reRenderEventList();
-  };
-
-  #handleNewEventClick = () => {
-    this.#currentFilterType = FILTERS[0].type;
-    this.#currentSortType = SORTS[0].type;
-    this.#reRenderEventList();
-
-    if (!this.#newEventPresenter) {
-      this.#newEventPresenter = new NewEventPresenter({
-        eventsModel: this.#eventsModel,
-        destinationsModel: this.#destinations,
-        offersModel: this.#offers,
-        onDataChange: this.#handleDataChange,
-        onCloseForm: this.#closeNewEventForm,
-      });
-    }
-    this.#newEventPresenter.init();
-    document.addEventListener('keydown', this.#handleEscKeyDown);
-    document.querySelector('.trip-main__event-add-btn').disabled = true;
-  };
-
-  #handleDataChange = async (actionType, updateType, updatedEvent) => {
-    if (actionType === UserAction.ADD_EVENT) {
-      try {
-        const addedEvent = await this.#eventsModel.addEvent(updateType, updatedEvent);
-        this.#events.push(addedEvent);
-        this.#reRenderEventList();
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Error adding event:', error);
-        throw error;
-      }
-    } else if (actionType === UserAction.DELETE_EVENT) {
-      try {
-        await this.#eventsModel.deleteEvent(updateType, updatedEvent);
-        this.#events = this.#events.filter((event) => event.id !== updatedEvent.id);
-        this.#reRenderEventList();
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Error deleting event:', error);
-        throw error;
-      }
-    } else {
-      this.#reRenderEventList();
-    }
-  };
-
-
-  #handleEscKeyDown = (evt) => {
-    if (evt.key === 'Escape') {
-      evt.preventDefault();
-      this.#closeNewEventForm();
-    }
-  };
-
-  #closeNewEventForm = () => {
-    this.#newEventPresenter?.destroy();
-    this.#newEventPresenter = null;
-    document.removeEventListener('keydown', this.#handleEscKeyDown);
-    document.querySelector('.trip-main__event-add-btn').disabled = false;
-    this.#reRenderEventList();
-  };
-
-  #renderFilters() {
-    const filters = generateFilter(this.#events).map((filter) => ({
-      ...filter,
-      isDisabled: this.#events.every((event) => !this.#applyFilter(event, filter.type))
-    }));
-
-    render(new FiltersView({
-      filters,
-      currentFilterType: this.#currentFilterType,
-      onFilterChange: this.#handleFilterChange
-    }), this.#filtersElement);
-  }
-
-  #renderSort() {
-    render(new SortView({
-      sorts: generateSort(),
-      onSortChange: this.#handleSortChange,
-    }), this.#tripEventElement);
   }
 
   #renderEventList() {
-    if (this.filteredEvents.length === 0) {
+    this.#clearEventList();
+
+    if (!this.#events.length) {
       document.querySelector(`#filter-${this.#currentFilterType}`).disabled = true;
       return;
     }
+
     render(this.#eventListComponent, this.#tripEventElement);
-    this.filteredEvents.sort(this.#getSortFunction()).forEach((event) => this.#renderEvent(event));
+    this.#events.forEach((event) => this.#renderEvent(event));
   }
 
   #renderEvent(event) {
     const eventPresenter = new EventPresenter(
       this.#tripEventElement.querySelector('.trip-events__list'),
-      this.#reRenderEventList,
-      this.#eventsModel
+      this.renderEventList,
+      this.eventsModel,
+      this.#onDataChange,
+      this.#resetView,
     );
-    eventPresenter.init(event, this.#eventsModel, this.#destinations, this.#offers, this.#resetEventViews, this.#handleViewAction);
+
+    eventPresenter.init(event, this.eventsModel, this.#destinationsModel, this.#offersModel, this.#onDataChange, this.#resetView);
     this.#eventPresenters.set(event.id, eventPresenter);
   }
 
-  _onDataChange = (updateType, userAction, event) => {
-    if (userAction === UserAction.DELETE_EVENT) {
-      this.#eventsModel.deleteEvent(updateType, event);
-    }
-  };
-
-  #handleViewAction = (actionType, updateType, update) => {
-    if (actionType === UserAction.UPDATE_EVENT) {
-      this.#eventsModel.updateEvent(updateType, update);
-      this.#events = updateItem(this.#events, update);
-      this.#reRenderEventList();
-    }
-  };
-
-  #handleSortChange = (sortType) => {
-    if (this.#currentSortType !== sortType) {
-      this.#currentSortType = sortType;
-      this.#reRenderEventList();
-    }
-  };
-
-  #getSortFunction() {
-    return SORTS.find((sortItem) => sortItem.type === this.#currentSortType)?.sort || (() => 0);
+  updateEvents(events) {
+    this.#events = [...events];
+    this.#renderEventList();
   }
-
-  #resetEventViews = () => {
-    this.#eventPresenters.forEach((presenter) => presenter.resetView());
-  };
 
   #clearEventList() {
     this.#eventPresenters.forEach((presenter) => presenter.destroy());
     this.#eventPresenters.clear();
-    this.#eventListComponent.clear();
-  }
-
-  #reRenderEventList() {
-    this.#clearEventList();
-    this.#renderEventList();
-  }
-
-  getEventPresenters() {
-    return this.#eventPresenters || [];
+    this.#tripEventElement.innerHTML = '';
   }
 }

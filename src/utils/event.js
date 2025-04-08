@@ -14,15 +14,18 @@ function humanizeDate(eventDate, dateFormat) {
 }
 
 function eventDuration(startTime, endTime) {
-  const durationDays = dayjs(endTime).diff(dayjs(startTime), 'days');
-  const durationHours = dayjs(endTime).diff(dayjs(startTime), 'hours') - durationDays * HOURS_IN_DAY;
-  const durationMinutes = dayjs(endTime).diff(dayjs(startTime), 'minutes') - durationDays * HOURS_IN_DAY * MINUTES_IN_HOURS - durationHours * MINUTES_IN_HOURS;
+  const duration = dayjs(endTime).diff(dayjs(startTime), 'minutes');
+  const durationDays = Math.floor(duration / (HOURS_IN_DAY * MINUTES_IN_HOURS));
+  const durationHours = Math.floor((duration - durationDays * HOURS_IN_DAY * MINUTES_IN_HOURS) / MINUTES_IN_HOURS);
+  const durationMinutes = duration - durationDays * HOURS_IN_DAY * MINUTES_IN_HOURS - durationHours * MINUTES_IN_HOURS;
 
-  return {
-    days: durationDays ? `${durationDays}D` : '',
-    hours: durationHours ? `${durationHours}H` : '',
-    minutes: durationMinutes ? `${durationMinutes}M` : ''
-  };
+  const formattedDays = durationDays ? `${String(durationDays).padStart(2, '0')}D` : '';
+  const formattedHours = durationDays || durationHours ? `${String(durationHours).padStart(2, '0')}H` : '';
+  const formattedMinutes = durationDays || durationHours || durationMinutes
+    ? `${String(durationMinutes).padStart(2, '0')}M`
+    : '00M';
+
+  return { days: formattedDays, hours: formattedHours, minutes: formattedMinutes };
 }
 
 function isEventFavorite(isFavourite) {

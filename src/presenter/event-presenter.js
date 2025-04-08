@@ -14,14 +14,17 @@ export default class EventPresenter {
   #eventEditFormComponent = null;
   #onDataChange = null;
   #onResetView = null;
+  #handleViewAction = null;
   renderEventList = null;
   static #currentlyEditing = null;
   #eventsModel = null;
 
-  constructor(container, renderEventList, eventsModel) {
+  constructor(container, renderEventList, eventsModel, onDataChange, onResetView) {
     this.#tripEventsListElement = container;
     this.renderEventList = renderEventList;
     this.#eventsModel = eventsModel;
+    this.#onDataChange = onDataChange;
+    this.#onResetView = onResetView;
   }
 
   init(event, eventsModel, destinationsModel, offersModel, onDataChange, onResetView) {
@@ -31,8 +34,8 @@ export default class EventPresenter {
 
     this.#event = event;
     this.#events = eventsModel;
-    this.#destinations = destinationsModel;
-    this.#offers = offersModel;
+    this.#destinations = destinationsModel.destinations;
+    this.#offers = offersModel.offers;
     this.#onDataChange = onDataChange;
     this.#onResetView = onResetView;
     const prevEventComponent = this.#eventComponent;
@@ -78,11 +81,16 @@ export default class EventPresenter {
   }
 
   destroy() {
+    document.removeEventListener('keydown', this.#escKeyDownHandler);
     remove(this.#eventComponent);
     remove(this.#eventEditFormComponent);
   }
 
   #handleFavoriteClick = () => {
+    if (!this.#onDataChange) {
+      return;
+    }
+
     const updatedEvent = {
       ...this.#event,
       isFavorite: !this.#event.isFavorite,
@@ -90,65 +98,61 @@ export default class EventPresenter {
 
     this.#event = updatedEvent;
     this.#eventComponent.updateFavoriteButton(updatedEvent.isFavorite);
+
+    const updatedEventFromServer = this.#eventsModel.updateEvent(updatedEvent);
+    this.#eventComponent.updateFavoriteButton(updatedEventFromServer.isFavorite);
+
+    this.#onDataChange(UserAction.UPDATE_EVENT, UpdateType.MINOR, updatedEventFromServer);
   };
 
   #handleEditClick = () => {
+    const existingForms = document.querySelectorAll('.event--edit');
+    const addNewEventButton = document.querySelector('.trip-main__event-add-btn');
+    addNewEventButton.disabled = false;
+    existingForms.forEach((form) => form.remove());
+
     if (EventPresenter.#currentlyEditing) {
-      EventPresenter.#currentlyEditing.resetView();
+      EventPresenter.#currentlyEditing.replaceFormToItem();
     }
 
     EventPresenter.#currentlyEditing = this;
-    this.#onResetView();
     this.#replaceItemToForm();
   };
 
-  #executeAction = async (actionType, updateType, payload, successCallback) => {
-    try {
-      // eslint-disable-next-line no-console
-      console.log(`Отправляем запрос ${actionType} на сервер:`, payload);
-      await this.#onDataChange(actionType, updateType, payload);
-      // eslint-disable-next-line no-console
-      console.log(`Сервер успешно обработал ${actionType}:`, payload);
-      if (typeof successCallback === 'function') {
-        successCallback();
-      }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error(`Ошибка при ${actionType}:`, error);
-      this.shake();
-      await new Promise((resolve) => setTimeout(resolve, 600));
-    }
-  };
-
   #handleFormSubmit = async (updatedEvent) => {
-    // Обновляем локальную копию события
-    this.#event = { ...this.#event, ...updatedEvent };
-    await this.#executeAction(UserAction.UPDATE_EVENT,UpdateType.MINOR,updatedEvent,() => {
-      this.#replaceFormToItem();
+    try {
+      const updatedEventFromServer = await this.#eventsModel.updateEvent(updatedEvent);
+      this.#event = updatedEventFromServer;
+      this.#onDataChange(UserAction.UPDATE_EVENT, UpdateType.MINOR, updatedEventFromServer);
+      this.#eventEditFormComponent.unlockForm();
+      this.replaceFormToItem();
+    } catch (error) {
+      this.#eventEditFormComponent.unlockForm();
     }
-    );
   };
 
   #handleDeleteClick = async () => {
-    await this.#executeAction(UserAction.DELETE_EVENT,UpdateType.MINOR,this.#event,() => {
+    try {
+      await this.#eventsModel.deleteEvent(this.#event.id);
+      this.#eventEditFormComponent.unlockForm();
       this.destroy();
-    }
-    );
-  };
-
-  _onDataChange = (updateType, userAction, event) => {
-    if (userAction === UserAction.DELETE_EVENT) {
-      this.#eventsModel.deleteEvent(updateType, event);
+    } catch (error) {
+      this.#eventEditFormComponent.unlockForm();
+      throw error;
     }
   };
 
   #handleCloseClick = () => {
-    this.#replaceFormToItem();
+    this.replaceFormToItem();
   };
 
   #replaceItemToForm() {
     if (!this.#eventComponent.element.parentElement) {
       return;
+    }
+
+    if (this.#eventEditFormComponent) {
+      remove(this.#eventEditFormComponent);
     }
 
     this.#eventEditFormComponent = new EventEditFormView({
@@ -166,12 +170,12 @@ export default class EventPresenter {
     document.addEventListener('keydown', this.#escKeyDownHandler);
   }
 
-  #replaceFormToItem() {
+  replaceFormToItem() {
     if (!this.#eventEditFormComponent || !this.#eventEditFormComponent.element.parentElement) {
       return;
     }
 
-    const updatedEventComponent = new EventView({
+    this.#eventComponent = new EventView({
       event: this.#event,
       destinations: this.#destinations,
       offers: this.#offers,
@@ -179,10 +183,12 @@ export default class EventPresenter {
       onFavoriteClick: this.#handleFavoriteClick
     });
 
-    replace(updatedEventComponent, this.#eventEditFormComponent);
+    replace(this.#eventComponent, this.#eventEditFormComponent);
     remove(this.#eventEditFormComponent);
+    this.#eventEditFormComponent = null;
 
-    this.#eventComponent = updatedEventComponent;
+    EventPresenter.#currentlyEditing = null;
+
     document.removeEventListener('keydown', this.#escKeyDownHandler);
   }
 

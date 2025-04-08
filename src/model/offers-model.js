@@ -1,11 +1,18 @@
 import Observable from '../framework/observable.js';
+import EventApiService from '../event-api-service.js';
+import { UpdateType } from '../const.js';
 
 export default class OffersModel extends Observable {
+  #apiService = new EventApiService();
   #offers = [];
 
-  constructor(initialOffers = []) {
-    super();
-    this.#offers = initialOffers;
+  async init() {
+    try {
+      this.#offers = await this.#apiService.getOffers();
+      this._notify(UpdateType.INIT);
+    } catch (err) {
+      throw new Error('Ошибка загрузки списка дополнительных опций');
+    }
   }
 
   get offers() {

@@ -1,63 +1,56 @@
+import { UpdateType } from '../const.js';
 import Observable from '../framework/observable.js';
+import EventApiService from '../event-api-service.js';
 
 export default class EventsModel extends Observable {
+  #apiService = new EventApiService();
   #events = [];
 
-  constructor(initialEvents = [], apiService) {
-    super();
-    this.#events = initialEvents;
-    this._api = apiService;
+  async init() {
+    try {
+      this.#events = await this.#apiService.getEvents();
+      this._notify(UpdateType.INIT);
+    } catch (error) {
+      this.#events = [];
+      throw new Error('Ошибка загрузки точек марщрута');
+    }
   }
 
   get events() {
     return this.#events;
   }
 
-  // Общий метод для выполнения запроса
-  async _executeRequest(apiFunc, updateType, payload, updateLocal) {
-    // eslint-disable-next-line no-console
-    console.log(`Sending request using ${apiFunc.name} for event:`, payload);
-    const result = await apiFunc.call(this._api, payload);
-    // eslint-disable-next-line no-console
-    console.log(`Server responded with ${apiFunc.name} result:`, result);
-    updateLocal(result);
-    this._notify(updateType, result);
-    return result;
-  }
-
-  // Обновление события
-  async updateEvent(updateType, update) {
-    return await this._executeRequest(this._api.updatePoint,updateType,update,(updatedData) => {
-      const index = this.#events.findIndex((event) => event.id === updatedData.id);
+  async updateEvent(event) {
+    try {
+      const updatedEvent = await this.#apiService.updateEvent(event);
+      const index = this.#events.findIndex((e) => e.id === updatedEvent.id);
       if (index !== -1) {
-        this.#events[index] = updatedData;
+        this.#events[index] = updatedEvent;
+        this._notify(UpdateType.PATCH, updatedEvent);
       }
+      return updatedEvent;
+    } catch (err) {
+      return err;
     }
-    );
   }
 
-  // Добавление нового события
-  async addEvent(updateType, newEvent) {
-    return await this._executeRequest(this._api.addPoint,updateType,newEvent,(addedEvent) => {
+  async addEvent(newEvent) {
+    try {
+      const addedEvent = await this.#apiService.addEvent(newEvent);
       this.#events = [addedEvent, ...this.#events];
+      this._notify(UpdateType.POST, addedEvent);
+    } catch (err) {
+      throw new Error('Ошибка добавления новой точки маршрута');
     }
-    );
   }
 
-  // Удаление события
-  async deleteEvent(updateType, event) {
-    return await this._executeRequest(async (payload) => {
-      await this._api.deletePoint(payload.id);
-      return payload; // возвращаем исходное событие
-    },
-    updateType,
-    event,
-    (deletedEvent) => {
-      const index = this.#events.findIndex((item) => item.id === deletedEvent.id);
-      if (index !== -1) {
-        this.#events.splice(index, 1);
-      }
+  async deleteEvent(eventId) {
+    try {
+      await this.#apiService.deleteEvent(eventId);
+      this.#events = this.#events.filter((event) => event.id !== eventId);
+      this._notify(UpdateType.PATCH, eventId);
+    } catch (err) {
+      throw new Error('Ошибка удаления точки маршрута');
     }
-    );
   }
 }

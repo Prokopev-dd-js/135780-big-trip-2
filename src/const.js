@@ -26,6 +26,14 @@ const DESCRIPTIONS = [
   'In rutrum ac purus sit amet tempus.'
 ];
 
+const NoEventMessages = {
+  loading: 'Loading...',
+  everything: 'Click New Event to create your first point',
+  past: 'There are no past events now',
+  present: 'There are no present events now',
+  future: 'There are no future events now',
+};
+
 const PICTURE_URL = 'https://loremflickr.com/248/152?random=';
 
 const FILTERS = [
@@ -92,4 +100,4 @@ const UpdateType = {
 };
 
 
-export { EVENT_TYPES, OFFERS, DESTINATIONS, DESCRIPTIONS, PICTURE_URL, FILTERS, SORTS, UserAction, UpdateType };
+export { EVENT_TYPES, OFFERS, DESTINATIONS, DESCRIPTIONS, PICTURE_URL, FILTERS, SORTS, UserAction, UpdateType, NoEventMessages };
